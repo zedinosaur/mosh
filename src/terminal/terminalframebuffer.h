@@ -102,26 +102,24 @@ public:
 class Hyperlink
 {
 public:
-  Hyperlink() : rep( nullptr ) {}
-  Hyperlink( std::string params, std::string url )
-    : rep( url.empty() ? nullptr : std::make_shared<Rep>( Rep { std::move( params ), std::move( url ) } ) )
-  {}
+  Hyperlink( std::string p, std::string u ) : params( std::move( p ) ), url( std::move( u ) ) {}
 
   std::string osc8() const;
 
-  bool empty() const { return rep == nullptr; }
+  bool empty() const { return url.empty(); }
 
-  bool operator==( const Hyperlink& x ) const;
+  bool operator==( const Hyperlink& x ) const { return params == x.params && url == x.url; }
 
   bool operator!=( const Hyperlink& x ) const { return !operator==( x ); }
 
+  // Creates a potentially shared empty hyperlink.
+  static std::shared_ptr<const Hyperlink> make_empty();
+
 private:
-  struct Rep
-  {
-    std::string params;
-    std::string url;
-  };
-  std::shared_ptr<Rep> rep;
+  Hyperlink() : params(), url() {}
+
+  std::string params;
+  std::string url;
 };
 
 class Cell
@@ -130,7 +128,7 @@ private:
   typedef std::string content_type; /* can be std::string, std::vector<uint8_t>, or __gnu_cxx::__vstring */
   content_type contents;
   Renditions renditions;
-  Hyperlink hyperlink;
+  std::shared_ptr<const Hyperlink> hyperlink;
   unsigned int wide : 1;     /* 0 = narrow, 1 = wide */
   unsigned int fallback : 1; /* first character is combining character */
   unsigned int wrap : 1;
@@ -146,7 +144,7 @@ public:
   bool operator==( const Cell& x ) const
   {
     return ( ( contents == x.contents ) && ( fallback == x.fallback ) && ( wide == x.wide )
-             && ( renditions == x.renditions ) && ( hyperlink == x.hyperlink ) && ( wrap == x.wrap ) );
+             && ( renditions == x.renditions ) && ( *hyperlink == *x.hyperlink ) && ( wrap == x.wrap ) );
   }
 
   bool operator!=( const Cell& x ) const { return !operator==( x ); }
@@ -225,8 +223,8 @@ public:
   }
 
   /* Other accessors */
-  const Hyperlink& get_hyperlink() const { return hyperlink; }
-  void set_hyperlink( Hyperlink l ) { hyperlink = std::move( l ); }
+  std::shared_ptr<const Hyperlink> get_hyperlink() const { return hyperlink; }
+  void set_hyperlink( std::shared_ptr<const Hyperlink> l ) { hyperlink = std::move( l ); }
   const Renditions& get_renditions( void ) const { return renditions; }
   Renditions& get_renditions( void ) { return renditions; }
   void set_renditions( const Renditions& r ) { renditions = r; }
@@ -300,7 +298,7 @@ private:
   int scrolling_region_top_row, scrolling_region_bottom_row;
 
   Renditions renditions;
-  Hyperlink hyperlink;
+  std::shared_ptr<const Hyperlink> hyperlink;
 
   SavedCursor save;
 
@@ -362,8 +360,8 @@ public:
   int limit_top( void ) const;
   int limit_bottom( void ) const;
 
-  const Hyperlink& get_hyperlink() const { return hyperlink; }
-  void set_hyperlink( Hyperlink x ) { hyperlink = std::move( x ); }
+  std::shared_ptr<const Hyperlink> get_hyperlink() const { return hyperlink; }
+  void set_hyperlink( std::shared_ptr<const Hyperlink> x ) { hyperlink = std::move( x ); }
 
   void set_foreground_color( int x ) { renditions.set_foreground_color( x ); }
   void set_background_color( int x ) { renditions.set_background_color( x ); }

@@ -130,7 +130,7 @@ std::string Display::new_frame( bool initialized, const Framebuffer& last, const
     initialized = false;
     frame.cursor_x = frame.cursor_y = 0;
     frame.current_rendition = initial_rendition();
-    frame.current_hyperlink = Hyperlink();
+    frame.current_hyperlink = Hyperlink::make_empty();
   } else {
     frame.cursor_x = frame.last_frame.ds.get_cursor_col();
     frame.cursor_y = frame.last_frame.ds.get_cursor_row();
@@ -205,7 +205,7 @@ std::string Display::new_frame( bool initialized, const Framebuffer& last, const
           blank_row = std::make_shared<Row>( w, c );
         }
         frame.update_rendition( initial_rendition(), true );
-        frame.update_hyperlink( Hyperlink(), true );
+        frame.update_hyperlink( Hyperlink::make_empty(), true );
 
         int top_margin = 0;
         int bottom_margin = top_margin + lines_scrolled + scroll_height - 1;
@@ -355,7 +355,7 @@ bool Display::put_row( bool initialized,
   int clear_count = 0;
   bool wrote_last_cell = false;
   Renditions blank_renditions = initial_rendition();
-  Hyperlink blank_hyperlink;
+  std::shared_ptr<const Hyperlink> blank_hyperlink = Hyperlink::make_empty();
 
   /* iterate for every cell */
   while ( frame_x < row_width ) {
@@ -374,7 +374,7 @@ bool Display::put_row( bool initialized,
         blank_renditions = cell.get_renditions();
         blank_hyperlink = cell.get_hyperlink();
       }
-      if ( cell.get_renditions() == blank_renditions && cell.get_hyperlink() == blank_hyperlink ) {
+      if ( cell.get_renditions() == blank_renditions && *cell.get_hyperlink() == *blank_hyperlink ) {
         /* Remember run of blank cells */
         clear_count++;
         frame_x++;
@@ -389,7 +389,7 @@ bool Display::put_row( bool initialized,
       frame.update_rendition( blank_renditions );
       frame.update_hyperlink( blank_hyperlink );
       bool can_use_erase
-        = has_bce || ( frame.current_rendition == initial_rendition() && frame.current_hyperlink.empty() );
+        = has_bce || ( frame.current_rendition == initial_rendition() && frame.current_hyperlink->empty() );
       if ( can_use_erase && has_ech && clear_count > 4 ) {
         snprintf( tmp, 64, "\033[%dX", clear_count );
         frame.append( tmp );
@@ -443,7 +443,7 @@ bool Display::put_row( bool initialized,
     frame.update_hyperlink( blank_hyperlink );
 
     bool can_use_erase
-      = has_bce || ( frame.current_rendition == initial_rendition() && frame.current_hyperlink.empty() );
+      = has_bce || ( frame.current_rendition == initial_rendition() && frame.current_hyperlink->empty() );
     if ( can_use_erase && !wrap_this ) {
       frame.append( "\033[K" );
     } else {
@@ -473,7 +473,7 @@ bool Display::put_row( bool initialized,
 }
 
 FrameState::FrameState( const Framebuffer& s_last )
-  : str(), cursor_x( 0 ), cursor_y( 0 ), current_rendition( 0 ), current_hyperlink(),
+  : str(), cursor_x( 0 ), cursor_y( 0 ), current_rendition( 0 ), current_hyperlink( Hyperlink::make_empty() ),
     cursor_visible( s_last.ds.cursor_visible ), last_frame( s_last )
 {
   /* Preallocate for better performance.  Make a guess-- doesn't matter for correctness */
@@ -529,11 +529,11 @@ void FrameState::update_rendition( const Renditions& r, bool force )
   }
 }
 
-void FrameState::update_hyperlink( const Hyperlink& h, bool force )
+void FrameState::update_hyperlink( const std::shared_ptr<const Hyperlink>& h, bool force )
 {
-  if ( force || current_hyperlink != h ) {
+  if ( force || *current_hyperlink != *h ) {
     /* print hyperlink */
-    append_string( h.osc8() );
+    append_string( h->osc8() );
     current_hyperlink = h;
   }
 }
